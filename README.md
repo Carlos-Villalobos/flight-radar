@@ -48,7 +48,7 @@ No APIs and no scraping: Google Flights does the tracking, and this agent reads 
 ## Running on a server (systemd)
 
 ```bash
-git clone https://github.com/Carlos-Villalobos/Flight_radar.git ~/flight-radar && cd ~/flight-radar
+git clone https://github.com/Carlos-Villalobos/flight-radar.git ~/flight-radar && cd ~/flight-radar
 uv venv -p 3.12 .venv && uv pip install -p .venv -e .
 cp .env.example .env                              # and fill it in
 cp config/trip.example.yaml config/trip.yaml      # and edit it
