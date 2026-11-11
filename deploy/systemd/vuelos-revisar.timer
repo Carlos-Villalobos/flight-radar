@@ -4,7 +4,9 @@
 Description=vuelos-baratos: revisión de precios cada 6 h
 
 [Timer]
-OnCalendar=*-*-* 09:20,15:20,20:40:00 Europe/Madrid
+OnCalendar=*-*-* 09:20:00 Europe/Madrid
+OnCalendar=*-*-* 15:20:00 Europe/Madrid
+OnCalendar=*-*-* 20:40:00 Europe/Madrid
 RandomizedDelaySec=5min
 Persistent=true
 
