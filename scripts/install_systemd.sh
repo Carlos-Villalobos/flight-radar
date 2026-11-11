@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
-# Instala (o quita) el timer de vuelos-baratos en un servidor Linux con systemd (la EC2).
-#   ./scripts/install_systemd.sh             → revisión de precios 3 veces al día
-#   ./scripts/install_systemd.sh uninstall   → desactiva y borra
+# Installs (or removes) the flight-radar timer on a Linux server with systemd.
+#   ./scripts/install_systemd.sh             → price check 3 times a day
+#   ./scripts/install_systemd.sh uninstall   → disable and remove
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 USER_NAME="$(id -un)"
-UNITS=(vuelos-revisar.service vuelos-revisar.timer)
+UNITS=(flight-radar-check.service flight-radar-check.timer)
 
 if [[ "${1:-}" == "uninstall" ]]; then
-  sudo systemctl disable --now vuelos-revisar.timer 2>/dev/null || true
+  sudo systemctl disable --now flight-radar-check.timer 2>/dev/null || true
   for unit in "${UNITS[@]}"; do sudo rm -f "/etc/systemd/system/$unit"; done
   sudo systemctl daemon-reload
-  echo "Desinstalado."
+  echo "Uninstalled."
   exit 0
 fi
 
-[[ -x "$DIR/.venv/bin/python" ]] || { echo "Falta $DIR/.venv: instala el proyecto primero"; exit 1; }
-[[ -f "$DIR/.env" ]] || { echo "Falta $DIR/.env"; exit 1; }
-# Solo comprueba que las variables tengan valor; nunca las imprime
+[[ -x "$DIR/.venv/bin/python" ]] || { echo "Missing $DIR/.venv: install the project first"; exit 1; }
+[[ -f "$DIR/.env" ]] || { echo "Missing $DIR/.env"; exit 1; }
+[[ -f "$DIR/config/trip.yaml" ]] || { echo "Missing $DIR/config/trip.yaml (copy config/trip.example.yaml)"; exit 1; }
+# Only checks that the variables have a value; never prints them
 for var in IMAP_USER IMAP_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do
-  grep -qE "^$var=.+" "$DIR/.env" || { echo "Falta $var en .env"; exit 1; }
+  grep -qE "^$var=.+" "$DIR/.env" || { echo "Missing $var in .env"; exit 1; }
 done
 
 for unit in "${UNITS[@]}"; do
@@ -27,7 +28,7 @@ for unit in "${UNITS[@]}"; do
 done
 sudo systemd-analyze verify "${UNITS[@]/#//etc/systemd/system/}"
 sudo systemctl daemon-reload
-sudo systemctl enable --now vuelos-revisar.timer
-systemctl list-timers 'vuelos-*' --no-pager
+sudo systemctl enable --now flight-radar-check.timer
+systemctl list-timers 'flight-radar-*' --no-pager
 echo
-echo "Logs: journalctl -u vuelos-revisar.service -n 50 --no-pager"
+echo "Logs: journalctl -u flight-radar-check.service -n 50 --no-pager"

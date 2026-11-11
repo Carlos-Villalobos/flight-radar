@@ -1,0 +1,24 @@
+# Example trip. Copy it as config/trip.yaml (git-ignored) and put your own trip there:
+#   cp config/trip.example.yaml config/trip.yaml
+# Prices come from Google Flights price-tracking emails: track each route in Google Flights with these same
+# dates and passengers, from the Gmail account the agent reads (IMAP_USER).
+origins: [MEX, GDL]           # IATA codes
+destinations: [LIS]
+passengers: 2                 # adults
+currency: mxn
+
+# Dates of the tracked trip in Google Flights (return: null for one-way)
+dates: {outbound: 2027-05-14, return: 2027-05-30}
+
+# How each airport appears in the alert email (city names, with and without accents)
+cities:
+  MEX: [Mexico City, Ciudad de México, Ciudad de Mexico]
+  GDL: [Guadalajara]
+  LIS: [Lisbon, Lisboa]
+
+# Whether the email shows the price for all passengers ("total") or for one ("per_person").
+# PROVISIONAL: confirm it with your first real alert.
+email_price: total
+
+max_price_per_person: null    # null = no cap; with a number, only notify below it
+min_drop_pct: 3               # notify when the best price drops at least this % below the lowest seen

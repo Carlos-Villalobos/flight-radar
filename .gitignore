@@ -1,4 +1,5 @@
 .env
+config/trip.yaml
 .venv/
 data/
 __pycache__/

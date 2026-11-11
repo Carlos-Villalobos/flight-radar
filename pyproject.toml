@@ -1,7 +1,7 @@
 [project]
-name = "vuelos-baratos"
+name = "flight-radar"
 version = "0.1.0"
-description = "Agente que vigila precios de vuelos (alertas de Google Flights por correo), guarda el histórico y avisa por Telegram de las bajadas"
+description = "Watches flight prices from Google Flights email alerts, keeps the history and sends Telegram notifications on price drops"
 requires-python = ">=3.12"
 dependencies = ["python-dotenv>=1.0", "pyyaml>=6.0", "requests>=2.32"]
 

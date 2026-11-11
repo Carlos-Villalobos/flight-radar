@@ -1,69 +1,68 @@
-# vuelos-baratos
+# flight-radar
 
-Agente que vigila el precio de los vuelos **Guadalajara (GDL) y Querétaro (QRO) → Madrid (MAD)**, ida y vuelta,
-para **4 adultos**, del vie 11 al dom 27 de junio de 2027. Lee las **alertas de precio de Google Flights** que
-llegan a tu Gmail, guarda el histórico en SQLite y avisa por Telegram cuando el precio de una ruta **baja**.
+Watches round-trip flight prices from **Google Flights price-tracking emails**. It reads the alerts from Gmail,
+keeps the price history in SQLite and sends a Telegram message when the price of a route **drops**.
 
-Sin APIs ni scraping. Sigue la estructura de [job-radar](../job-radar) y reutiliza su forma de leer el correo
-(`linkedin_email.py`): IMAP en **solo lectura** (`readonly=True` + `BODY.PEEK`), que no marca, mueve ni borra
-correos, con una contraseña de aplicación de Gmail.
+No APIs and no scraping: Google Flights does the tracking, and this agent reads your inbox over IMAP in
+**read-only** mode (`readonly=True` + `BODY.PEEK`), so it never marks, moves or deletes emails.
 
-## Cómo funciona
+## How it works
 
-1. En Google Flights activas el **seguimiento de precio** de cada ruta (GDL → MAD y QRO → MAD, 4 adultos,
-   11 → 27 jun 2027) con la cuenta de Gmail de `IMAP_USER`. Google manda un correo cuando el precio cambia.
-2. `python -m vuelos revisar` lee las alertas de los últimos 7 días, reconoce la ruta por el nombre de las
-   ciudades (`ciudades` en el config) y saca el precio en MXN y el enlace a Google Flights.
-3. Cada correo se procesa una sola vez (por su `Message-ID`) y se guarda en `data/precios.sqlite`.
-4. Compara con el **mínimo visto antes** en esa ruta: la primera vez manda el precio de partida; después solo
-   avisa si baja al menos un `bajada_minima_pct` (3 %).
+1. In Google Flights, turn on **price tracking** for each route (same dates and passengers as in
+   `config/trip.yaml`) using the Gmail account in `IMAP_USER`. Google emails you when the price changes.
+2. `python -m flight_radar check` reads the alerts from the last 7 days, matches each route by city name
+   (`cities` in the config) and extracts the MXN price and the Google Flights link.
+3. Each email is processed once (by its `Message-ID`) and stored in `data/prices.sqlite`.
+4. It compares against the **lowest price seen before** on that route: the first time it sends the starting
+   price; after that it only notifies when the price drops at least `min_drop_pct` (3 %).
 
-> **Parser provisional.** El formato del correo de Google no está documentado. Hasta tener un correo real se
-> asume que muestra el precio **total** de los 4 (`precio_del_correo: total`) y, si aparecen precio anterior y
-> nuevo, se queda con el más bajo. Cuando llegue la primera alerta, descárgala como `.eml` (Gmail: ⋮ →
-> Descargar mensaje) para ajustar el parser y añadirla a los tests.
+> **Provisional parser.** Google's alert format is undocumented. Until it is checked against a real email, it
+> assumes the alert shows the **total** price for all passengers (`email_price: total`) and, if both the old and
+> the new price appear, it keeps the lowest one.
 
-## Puesta en marcha (paso a paso)
+## Setup
 
-1. **Alertas:** crea en Google Flights los dos seguimientos de precio (paso 1 de arriba).
-2. **`.env`:** se puede copiar el de job-radar (`cp ../job-radar/.env .env`): usa las mismas `IMAP_*` y
-   `TELEGRAM_*`. Las alertas tienen que llegar a ese Gmail.
-3. **Instala el proyecto:**
+1. **Trip:** copy the example and edit it (`config/trip.yaml` is git-ignored):
+   ```bash
+   cp config/trip.example.yaml config/trip.yaml
+   ```
+2. **Alerts:** track each route in Google Flights (step 1 above).
+3. **Secrets:** create `.env` from the template and fill it in:
+   ```bash
+   cp .env.example .env
+   ```
+   `IMAP_PASSWORD` must be a Gmail **app password** (Google Account → Security → App passwords).
+4. **Install:**
    ```bash
    uv venv -p 3.12 .venv && uv pip install -p .venv -e '.[dev]'
    ```
-   En macOS, si luego sale `No module named vuelos`, quita la marca de oculto que pone la sincronización de
-   `~/Documents`: `chflags nohidden .venv/lib/python3.12/site-packages/*.pth`.
-4. **Prueba Telegram y una revisión:**
+   On macOS, if you later get `No module named flight_radar` inside a synced `~/Documents` folder, remove the
+   hidden flag: `chflags nohidden .venv/lib/python3.12/site-packages/*.pth`.
+5. **Try it:**
    ```bash
-   .venv/bin/python -m vuelos prueba-telegram
-   .venv/bin/python -m vuelos revisar
-   .venv/bin/python -m vuelos historial
+   .venv/bin/python -m flight_radar test-telegram
+   .venv/bin/python -m flight_radar check
+   .venv/bin/python -m flight_radar history
    ```
 
-## En la EC2
+## Running on a server (systemd)
 
 ```bash
-git clone <tu-repo> ~/vuelos-baratos && cd ~/vuelos-baratos
+git clone https://github.com/Carlos-Villalobos/Flight_radar.git ~/flight-radar && cd ~/flight-radar
 uv venv -p 3.12 .venv && uv pip install -p .venv -e .
-cp .env.example .env    # y complétalo
+cp .env.example .env                              # and fill it in
+cp config/trip.example.yaml config/trip.yaml      # and edit it
 ./scripts/install_systemd.sh
 ```
 
-El timer revisa 3 veces al día (09:20, 15:20 y 20:40, hora de Madrid): cada ~6 h dentro del horario en que la EC2
-está encendida, igual que job-radar. Si estaba apagada, corre al arrancar (`Persistent=true`). Para ver los logs:
-`journalctl -u vuelos-revisar.service -n 50 --no-pager`. Para quitarlo: `./scripts/install_systemd.sh uninstall`.
+The timer checks 3 times a day (09:20, 15:20 and 20:40, Madrid time). If the machine was off at a scheduled time,
+it runs at boot (`Persistent=true`). Logs: `journalctl -u flight-radar-check.service -n 50 --no-pager`.
+To remove it: `./scripts/install_systemd.sh uninstall`.
 
-## Cambiar el viaje
-
-Todo está en [`config/viaje.yaml`](config/viaje.yaml): orígenes, destinos, fechas, pasajeros, nombres de las
-ciudades, si el correo trae precio total o por persona, precio máximo y % mínimo de bajada. Si cambias fechas o
-pasajeros, cambia también los seguimientos en Google Flights.
-
-## Pruebas
+## Tests
 
 ```bash
 .venv/bin/pytest -q
 ```
 
-No leen el correo ni llaman a Telegram: se simulan con correos de ejemplo.
+They never read real email or call Telegram: both are simulated with sample messages.

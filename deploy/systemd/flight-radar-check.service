@@ -1,6 +1,6 @@
-# Una revisión de precios. Plantilla: scripts/install_systemd.sh sustituye __DIR__ y __USER__.
+# One price check. Template: scripts/install_systemd.sh replaces __DIR__ and __USER__.
 [Unit]
-Description=vuelos-baratos: revisión de precios
+Description=flight-radar: price check
 Wants=network-online.target
 After=network-online.target
 
@@ -8,7 +8,7 @@ After=network-online.target
 Type=oneshot
 User=__USER__
 WorkingDirectory=__DIR__
-ExecStart="__DIR__/.venv/bin/python" -m vuelos revisar
+ExecStart="__DIR__/.venv/bin/python" -m flight_radar check
 TimeoutStartSec=10min
 Nice=10
 NoNewPrivileges=true
