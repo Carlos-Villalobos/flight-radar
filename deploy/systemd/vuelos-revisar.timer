@@ -1,0 +1,12 @@
+# Cada 6 h dentro del horario en que la EC2 está encendida (09:00-21:00, hora de Madrid), como job-radar.
+# Persistent: si la máquina estaba apagada a una hora programada, corre al arrancar.
+[Unit]
+Description=vuelos-baratos: revisión de precios cada 6 h
+
+[Timer]
+OnCalendar=*-*-* 09:20,15:20,20:40:00 Europe/Madrid
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

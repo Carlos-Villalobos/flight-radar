@@ -1,0 +1,23 @@
+# Viaje que vigila el agente. Cambia las fechas aquí cuando se muevan: no hace falta tocar código.
+# Los precios salen de las alertas de Google Flights: crea un seguimiento por ruta con estas mismas fechas
+# y pasajeros, desde la cuenta de Gmail que lee el agente (IMAP_USER).
+origenes: [GDL, QRO]          # Guadalajara y Querétaro
+destinos: [MAD]               # Madrid
+pasajeros: 4                  # adultos
+moneda: mxn
+
+# Fechas del seguimiento en Google Flights (plan: vie 11 → dom 27 jun 2027)
+fechas: {salida: 2027-06-11, regreso: 2027-06-27}
+
+# Cómo se reconoce cada ruta en el texto del correo
+ciudades:
+  GDL: [Guadalajara]
+  QRO: [Querétaro, Queretaro]
+  MAD: [Madrid]
+
+# El correo muestra el precio de todos los pasajeros ("total") o de uno ("por_persona").
+# PROVISIONAL: confírmalo con el primer correo real.
+precio_del_correo: total
+
+precio_maximo_por_persona: null   # null = sin máximo; si pones un número, solo avisa por debajo de él
+bajada_minima_pct: 3              # aviso si el mejor precio baja al menos este % respecto al mínimo visto
