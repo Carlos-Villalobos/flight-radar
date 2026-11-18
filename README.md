@@ -11,14 +11,16 @@ No APIs and no scraping: Google Flights does the tracking, and this agent reads 
 1. In Google Flights, turn on **price tracking** for each route (same dates and passengers as in
    `config/trip.yaml`) using the Gmail account in `IMAP_USER`. Google emails you when the price changes.
 2. `python -m flight_radar check` reads the alerts from the last 7 days, matches each route by city name
-   (`cities` in the config) and extracts the MXN price and the Google Flights link.
+   (`cities` in the config) and extracts each trip option: dates, price per adult (EUR) and the Google Flights
+   link. Both "tracked flight" and "tracked route" (any dates) emails are supported.
 3. Each email is processed once (by its `Message-ID`) and stored in `data/prices.sqlite`.
-4. It compares against the **lowest price seen before** on that route: the first time it sends the starting
-   price; after that it only notifies when the price drops at least `min_drop_pct` (3 %).
+4. Same route and dates seen before → it notifies a drop of at least `min_drop_pct` (3 %). New dates → it
+   notifies only when they beat the lowest price seen on the route, so a route email with many dates does not
+   flood the chat.
 
-> **Provisional parser.** Google's alert format is undocumented. Until it is checked against a real email, it
-> assumes the alert shows the **total** price for all passengers (`email_price: total`) and, if both the old and
-> the new price appear, it keeps the lowest one.
+Gmail archives some alerts or sends them to spam: point `IMAP_FOLDER` to All Mail (`[Gmail]/All Mail`, or
+`[Gmail]/Todos` in a Spanish-language Gmail) and add a Gmail filter for `noreply-travel@google.com` with
+"Never send it to Spam".
 
 ## Setup
 
