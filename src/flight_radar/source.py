@@ -3,8 +3,8 @@
 No API and no scraping: you turn on price tracking in Google Flights for each route (with the trip's dates and
 passengers) and Google emails you when the price changes. This module reads those emails.
 
-PROVISIONAL: the email format is undocumented. The parser finds the route by city name, the price in MXN and the
-Google Flights link; it should be tuned against a real alert (.eml).
+Two kinds of alert are parsed (prices in EUR, per adult): "tracked flight" emails list "City to City / dates /
+price (increased from old price)" blocks; "tracked route" emails list several date options with "GDL–MAD".
 """
 import datetime as dt
 import email
@@ -12,15 +12,19 @@ import html
 import imaplib
 import re
 from dataclasses import dataclass
-from email.header import decode_header, make_header
 from email.message import Message
+from email.utils import parsedate_to_datetime
 
 from flight_radar.config import env
 
-SENDER = "google.com"          # e.g. noreply-travel@google.com; content is filtered too
-PRICE = re.compile(r"(?:MX\$|MXN\s?\$?|\$)\s?(\d{1,3}(?:[,.]\d{3})+|\d{4,})(?:\s?MXN)?")
-LINK = re.compile(r"https://www\.google\.com/travel/flights[^\s\"'<>]*")
-TRIP_WORDS = ("flight", "vuelo", "trip", "viaje")  # alerts may arrive in English or Spanish
+SENDER = "noreply-travel@google.com"
+# "Fri, Jun 11 – Mon, Jun 21": one trip option per date range; the year is not in the email
+DATES = re.compile(r"\w{3}, (\w{3} \d{1,2}) [–-] \w{3}, (\w{3} \d{1,2})")
+PRICE = re.compile(r"€\s?([\d,]+)")
+ROUTE = re.compile(r"([A-Z]{3})[–-]([A-Z]{3})")           # "GDL–MAD" in route emails
+TO = re.compile(r"^\s*(?:from )?(.+?) to (.+?)[,.]?\s*$", re.M | re.I)  # "Guadalajara to Madrid"
+ADULTS = re.compile(r"(\d+) adults?")
+LINK = re.compile(r"https://www\.google\.com/travel/flights\?tfs=[^\s)>\]]+")
 
 
 class SourceError(RuntimeError):
@@ -58,29 +62,50 @@ def _fold(s: str) -> str:
     return s.lower().translate(str.maketrans("áéíóúü", "aeiouu"))
 
 
-def _price(m: re.Match) -> float:
-    return float(re.sub(r"[,.]", "", m.group(1)))
+def _code(name: str, cfg: dict) -> str | None:
+    """IATA code of a city name from the email, using `cities` in the config."""
+    name = _fold(name)
+    return next((c for c, names in cfg["cities"].items() if any(_fold(n) in name for n in names)), None)
+
+
+def _date(text: str, sent: dt.date) -> dt.date:
+    """'Jun 11' → the first Jun 11 on or after the email date."""
+    d = dt.datetime.strptime(f"{text} {sent.year}", "%b %d %Y").date()
+    return d if d >= sent else d.replace(year=d.year + 1)
 
 
 def parse_message(msg: Message, cfg: dict) -> list[Offer]:
-    """Offers in one alert email: one per configured route that appears in it. Other emails are ignored."""
-    subject = str(make_header(decode_header(msg.get("Subject", ""))))
-    readable, raw = _text(msg)
-    text = _fold(subject + "\n" + readable)
-    if not any(w in text for w in TRIP_WORDS):
-        return []
-    cities = cfg["cities"]
-    mentioned = lambda code: any(_fold(n) in text for n in cities[code]) or code.lower() in text.split()
-    prices = [_price(m) for m in PRICE.finditer(text)]
-    if not prices:
-        return []
-    # When unsure (old price struck through + new price), keep the lowest
-    price = min(prices) / (cfg["passengers"] if cfg["email_price"] == "total" else 1)
-    link = next(iter(LINK.findall(raw + readable)), "https://www.google.com/travel/flights")
-    d = cfg["dates"]
-    return [Offer(o, t, d["outbound"], d.get("return"), price, "", None, html.unescape(link),
-                  msg.get("Message-ID", "").strip())
-            for o in cfg["origins"] for t in cfg["destinations"] if mentioned(o) and mentioned(t)]
+    """Every trip option (route + dates + price per person) in a Google Flights alert email."""
+    text, _ = _text(msg)
+    try:
+        sent = parsedate_to_datetime(msg["Date"]).date()
+    except (TypeError, ValueError):
+        sent = dt.date.today()
+    msg_id = msg.get("Message-ID", "").strip()
+    starts = [m for m in DATES.finditer(text)]
+    offers = []
+    for i, m in enumerate(starts):
+        block = text[m.end():starts[i + 1].start() if i + 1 < len(starts) else len(text)]
+        before = text[:m.start()]
+        price = PRICE.search(block)
+        if not price:
+            continue
+        codes = ROUTE.search(block)
+        if codes:
+            origin, destination = codes.groups()
+        else:
+            to = list(TO.finditer(before))
+            if not to:
+                continue
+            origin, destination = (_code(x, cfg) for x in to[-1].groups())
+        if origin not in cfg["origins"] or destination not in cfg["destinations"]:
+            continue
+        adults = ADULTS.findall(before + block[:200])
+        per_person = float(price.group(1).replace(",", "")) / int(adults[-1] if adults else 1)
+        link = LINK.search(block)
+        offers.append(Offer(origin, destination, _date(m.group(1), sent), _date(m.group(2), sent), per_person,
+                            "", None, link.group(0) if link else "https://www.google.com/travel/flights", msg_id))
+    return offers
 
 
 def read(cfg: dict, days: int = 7) -> list[Offer]:
@@ -93,7 +118,8 @@ def read(cfg: dict, days: int = 7) -> list[Offer]:
     try:
         with imaplib.IMAP4_SSL(env("IMAP_HOST", "imap.gmail.com")) as box:
             box.login(user, password)
-            box.select(env("IMAP_FOLDER", "INBOX"), readonly=True)
+            folder = env("IMAP_FOLDER", "INBOX").strip("\"'")
+            box.select(f'"{folder}"', readonly=True)  # quoted: Gmail folder names have spaces
             _, data = box.search(None, f'(FROM "{SENDER}" SINCE {since})')
             for num in data[0].split():
                 _, msg_data = box.fetch(num, "(BODY.PEEK[])")  # PEEK: does not mark as read

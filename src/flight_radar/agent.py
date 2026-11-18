@@ -23,7 +23,7 @@ def is_drop(new: float, previous: float | None, cfg: dict) -> bool:
 
 def message(o: Offer, previous: float | None, cfg: dict) -> str:
     c, n = cfg["currency"], cfg["passengers"]
-    head = (f"✈️ First tracked price {o.origin} → {o.destination}" if previous is None else
+    head = (f"✈️ New lowest price {o.origin} → {o.destination}" if previous is None else
             f"📉 Price drop {o.origin} → {o.destination}: {_money(previous, c)} → {_money(o.price, c)} "
             f"(-{(1 - o.price / previous) * 100:.0f} %)")
     dates = o.outbound.strftime("%a %d %b %Y") + (f" → {o.inbound.strftime('%a %d %b %Y')}" if o.inbound else "")
@@ -32,28 +32,35 @@ def message(o: Offer, previous: float | None, cfg: dict) -> str:
 
 
 def check(cfg: dict, con, read=source.read, send=notify.telegram) -> list[str]:
-    """Read new alerts, store them and notify drops. Returns the notifications."""
+    """Read new alerts, store them and notify drops. Returns the notifications.
+
+    Same route and dates seen before → notify a drop of min_drop_pct. New dates → notify only if cheaper than
+    anything seen on the route, so a "tracked route" email with many dates does not flood the chat.
+    """
     try:
         offers = [o for o in read(cfg) if not store.seen(con, o.msg_id)]
     except source.SourceError as e:
         log.error("%s", e)
         return []
+    best: dict[tuple, Offer] = {}
+    for o in offers:
+        key = (o.origin, o.destination, o.outbound, o.inbound)
+        if key not in best or o.price < best[key].price:
+            best[key] = o
+    log.info("%d new alert offer(s), %d route/date option(s)", len(offers), len(best))
     sent = []
-    for origin in cfg["origins"]:
-        for destination in cfg["destinations"]:
-            route = sorted((o for o in offers if (o.origin, o.destination) == (origin, destination)),
-                           key=lambda o: o.price)
-            if not route:
-                log.info("%s→%s: no new alerts", origin, destination)
-                continue
-            previous = store.lowest_before(con, origin, destination)
-            store.save(con, route, cfg["currency"])
-            best = route[0]
-            log.info("%s→%s: best %s (previous low %s), %d alert(s)", origin, destination, best.price, previous,
-                     len(route))
-            if is_drop(best.price, previous, cfg):
-                text = message(best, previous, cfg)
-                if not send(text):
-                    log.error("Telegram notification failed: %s", notify.last_error)
-                sent.append(text)
+    for o in sorted(best.values(), key=lambda o: o.price):
+        same_dates = store.lowest_before(con, o.origin, o.destination, o.outbound, o.inbound)
+        route_low = store.lowest_before(con, o.origin, o.destination)
+        if same_dates is not None:
+            notify_it, previous = is_drop(o.price, same_dates, cfg), same_dates
+        else:
+            notify_it, previous = is_drop(o.price, None, cfg) and (route_low is None or o.price < route_low), None
+        store.save(con, [o], cfg["currency"])
+        if notify_it:
+            text = message(o, previous, cfg)
+            if not send(text):
+                log.error("Telegram notification failed: %s", notify.last_error)
+            sent.append(text)
+    store.save(con, [o for o in offers if o not in best.values()], cfg["currency"])  # keep every email as seen
     return sent

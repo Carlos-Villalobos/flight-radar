@@ -5,7 +5,7 @@
 origins: [MEX, GDL]           # IATA codes
 destinations: [LIS]
 passengers: 2                 # adults
-currency: mxn
+currency: eur                 # Google Flights alerts come in EUR
 
 # Dates of the tracked trip in Google Flights (return: null for one-way)
 dates: {outbound: 2027-05-14, return: 2027-05-30}
@@ -16,9 +16,6 @@ cities:
   GDL: [Guadalajara]
   LIS: [Lisbon, Lisboa]
 
-# Whether the email shows the price for all passengers ("total") or for one ("per_person").
-# PROVISIONAL: confirm it with your first real alert.
-email_price: total
 
 max_price_per_person: null    # null = no cap; with a number, only notify below it
 min_drop_pct: 3               # notify when the best price drops at least this % below the lowest seen

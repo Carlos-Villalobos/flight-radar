@@ -35,10 +35,14 @@ def seen(con, msg_id: str) -> bool:
     return bool(msg_id) and con.execute("SELECT 1 FROM prices WHERE msg_id=? LIMIT 1", (msg_id,)).fetchone() is not None
 
 
-def lowest_before(con, origin: str, destination: str) -> float | None:
-    """Lowest per-person price seen before on this route."""
-    (v,) = con.execute("SELECT MIN(price) FROM prices WHERE origin=? AND destination=?",
-                       (origin, destination)).fetchone()
+def lowest_before(con, origin: str, destination: str, outbound: dt.date | None = None,
+                  inbound: dt.date | None = None) -> float | None:
+    """Lowest per-person price seen before on this route (only for these dates when given)."""
+    sql, args = "SELECT MIN(price) FROM prices WHERE origin=? AND destination=?", [origin, destination]
+    if outbound:
+        sql, args = sql + " AND outbound=? AND inbound IS ?", args + [outbound.isoformat(),
+                                                                     inbound.isoformat() if inbound else None]
+    (v,) = con.execute(sql, args).fetchone()
     return v
 
 
