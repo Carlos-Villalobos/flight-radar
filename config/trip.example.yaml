@@ -5,7 +5,6 @@
 origins: [MEX, GDL]           # IATA codes
 destinations: [LIS]
 passengers: 2                 # adults
-currency: eur                 # Google Flights alerts come in EUR
 
 # Dates of the tracked trip in Google Flights (return: null for one-way)
 dates: {outbound: 2027-05-14, return: 2027-05-30}

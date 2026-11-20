@@ -6,7 +6,7 @@ import pytest
 from flight_radar import agent, source, store
 from flight_radar.source import Offer
 
-CFG = {"origins": ["GDL", "QRO"], "destinations": ["MAD"], "passengers": 4, "currency": "eur",
+CFG = {"origins": ["GDL", "QRO"], "destinations": ["MAD"], "passengers": 4,
        "dates": {"outbound": dt.date(2027, 6, 11), "return": dt.date(2027, 6, 27)},
        "cities": {"GDL": ["Guadalajara"], "QRO": ["Querétaro", "Queretaro"], "MAD": ["Madrid"]},
        "max_price_per_person": None, "min_drop_pct": 3}

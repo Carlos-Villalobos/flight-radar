@@ -2,7 +2,7 @@
 import argparse
 import logging
 
-from flight_radar import agent, notify, store
+from flight_radar import agent, notify, source, store
 from flight_radar.config import db_path, load_config
 
 
@@ -24,7 +24,7 @@ def main(argv=None) -> None:
             for d in cfg["destinations"]:
                 print(f"{o} → {d}")
                 for ts, price in store.history(con, o, d):
-                    print(f"  {ts}  {price:,.0f} {cfg['currency'].upper()}")
+                    print(f"  {ts}  {price:,.0f} {source.CURRENCY}")
 
 
 if __name__ == "__main__":

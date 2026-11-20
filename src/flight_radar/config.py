@@ -32,7 +32,6 @@ def load_config(path: Path | None = None) -> dict:
     cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     cfg["dates"] = {k: _date(v) for k, v in cfg["dates"].items() if v}
     cfg.setdefault("passengers", 1)
-    cfg.setdefault("currency", "eur")
     cfg.setdefault("min_drop_pct", 3)
     cfg.setdefault("max_price_per_person", None)
     cfg.setdefault("cities", {})

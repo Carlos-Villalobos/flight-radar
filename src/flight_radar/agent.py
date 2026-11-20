@@ -22,7 +22,7 @@ def is_drop(new: float, previous: float | None, cfg: dict) -> bool:
 
 
 def message(o: Offer, previous: float | None, cfg: dict) -> str:
-    c, n = cfg["currency"], cfg["passengers"]
+    c, n = source.CURRENCY, cfg["passengers"]
     head = (f"✈️ New lowest price {o.origin} → {o.destination}" if previous is None else
             f"📉 Price drop {o.origin} → {o.destination}: {_money(previous, c)} → {_money(o.price, c)} "
             f"(-{(1 - o.price / previous) * 100:.0f} %)")
@@ -56,11 +56,11 @@ def check(cfg: dict, con, read=source.read, send=notify.telegram) -> list[str]:
             notify_it, previous = is_drop(o.price, same_dates, cfg), same_dates
         else:
             notify_it, previous = is_drop(o.price, None, cfg) and (route_low is None or o.price < route_low), None
-        store.save(con, [o], cfg["currency"])
+        store.save(con, [o], source.CURRENCY)
         if notify_it:
             text = message(o, previous, cfg)
             if not send(text):
                 log.error("Telegram notification failed: %s", notify.last_error)
             sent.append(text)
-    store.save(con, [o for o in offers if o not in best.values()], cfg["currency"])  # keep every email as seen
+    store.save(con, [o for o in offers if o not in best.values()], source.CURRENCY)  # keep every email as seen
     return sent

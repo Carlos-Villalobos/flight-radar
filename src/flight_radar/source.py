@@ -20,6 +20,7 @@ from flight_radar.config import env
 SENDER = "noreply-travel@google.com"
 # "Fri, Jun 11 – Mon, Jun 21": one trip option per date range; the year is not in the email
 DATES = re.compile(r"\w{3}, (\w{3} \d{1,2}) [–-] \w{3}, (\w{3} \d{1,2})")
+CURRENCY = "EUR"                                   # the parser only reads € prices
 PRICE = re.compile(r"€\s?([\d,]+)")
 ROUTE = re.compile(r"([A-Z]{3})[–-]([A-Z]{3})")           # "GDL–MAD" in route emails
 TO = re.compile(r"^\s*(?:from )?(.+?) to (.+?)[,.]?\s*$", re.M | re.I)  # "Guadalajara to Madrid"
