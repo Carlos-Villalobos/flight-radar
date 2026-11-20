@@ -1,6 +1,8 @@
 """One check: read the Google Flights alerts, store the history and decide what to notify. Runs and exits (systemd)."""
 import logging
 
+import requests
+
 from flight_radar import notify, source, store
 from flight_radar.source import Offer
 
@@ -9,6 +11,19 @@ log = logging.getLogger("flight_radar")
 
 def _money(v: float, currency: str) -> str:
     return f"{v:,.0f} {currency.upper()}"
+
+
+def rate(to: str | None) -> float | None:
+    """Today's EUR → `to` rate (ECB, via frankfurter.dev, free and keyless). None when off or unreachable."""
+    if not to:
+        return None
+    try:
+        r = requests.get("https://api.frankfurter.dev/v1/latest", params={"base": source.CURRENCY, "symbols": to},
+                         timeout=15)
+        return float(r.json()["rates"][to.upper()])
+    except (requests.RequestException, ValueError, KeyError) as e:
+        log.warning("No exchange rate for %s (%s): prices only in %s", to, type(e).__name__, source.CURRENCY)
+        return None
 
 
 def is_drop(new: float, previous: float | None, cfg: dict) -> bool:
@@ -21,14 +36,16 @@ def is_drop(new: float, previous: float | None, cfg: dict) -> bool:
     return new <= previous * (1 - cfg["min_drop_pct"] / 100)
 
 
-def message(o: Offer, previous: float | None, cfg: dict) -> str:
-    c, n = source.CURRENCY, cfg["passengers"]
+def message(o: Offer, previous: float | None, cfg: dict, fx: float | None = None) -> str:
+    c, n, to = source.CURRENCY, cfg["passengers"], cfg.get("convert_to")
+    also = lambda v: f" (≈ {_money(v * fx, to)})" if fx else ""
     head = (f"✈️ New lowest price {o.origin} → {o.destination}" if previous is None else
             f"📉 Price drop {o.origin} → {o.destination}: {_money(previous, c)} → {_money(o.price, c)} "
             f"(-{(1 - o.price / previous) * 100:.0f} %)")
     dates = o.outbound.strftime("%a %d %b %Y") + (f" → {o.inbound.strftime('%a %d %b %Y')}" if o.inbound else "")
     return (f"{head}\n{dates} · Google Flights alert\n"
-            f"{_money(o.price, c)} per person · {_money(o.price * n, c)} for {n}\n{o.link}")
+            f"{_money(o.price, c)}{also(o.price)} per person · {_money(o.price * n, c)}{also(o.price * n)} for {n}\n"
+            + (f"1 {c} = {fx:.2f} {to.upper()} (ECB, today)\n" if fx else "") + o.link)
 
 
 def check(cfg: dict, con, read=source.read, send=notify.telegram) -> list[str]:
@@ -48,7 +65,7 @@ def check(cfg: dict, con, read=source.read, send=notify.telegram) -> list[str]:
         if key not in best or o.price < best[key].price:
             best[key] = o
     log.info("%d new alert offer(s), %d route/date option(s)", len(offers), len(best))
-    sent = []
+    sent, fx = [], ...
     for o in sorted(best.values(), key=lambda o: o.price):
         same_dates = store.lowest_before(con, o.origin, o.destination, o.outbound, o.inbound)
         route_low = store.lowest_before(con, o.origin, o.destination)
@@ -58,7 +75,9 @@ def check(cfg: dict, con, read=source.read, send=notify.telegram) -> list[str]:
             notify_it, previous = is_drop(o.price, None, cfg) and (route_low is None or o.price < route_low), None
         store.save(con, [o], source.CURRENCY)
         if notify_it:
-            text = message(o, previous, cfg)
+            if fx is ...:
+                fx = rate(cfg.get("convert_to"))      # fetched once, and only when there is something to send
+            text = message(o, previous, cfg, fx)
             if not send(text):
                 log.error("Telegram notification failed: %s", notify.last_error)
             sent.append(text)

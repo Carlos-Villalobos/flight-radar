@@ -16,5 +16,6 @@ cities:
   LIS: [Lisbon, Lisboa]
 
 
+convert_to: MXN               # also show prices in this currency (today's ECB rate); null = only EUR
 max_price_per_person: null    # null = no cap; with a number, only notify below it
 min_drop_pct: 3               # notify when the best price drops at least this % below the lowest seen

@@ -118,3 +118,12 @@ def test_example_config_loads():
     assert cfg["origins"] and cfg["destinations"] and cfg["passengers"] >= 1
     assert isinstance(cfg["dates"]["outbound"], dt.date)
     assert all(code in cfg["cities"] for code in cfg["origins"] + cfg["destinations"])
+
+
+def test_message_converts_to_local_currency():
+    o = Offer("GDL", "MAD", dt.date(2027, 4, 24), dt.date(2027, 5, 1), 672, "", None, "link", "<x>")
+    text = agent.message(o, None, {**CFG, "convert_to": "MXN"}, fx=20.95)
+    assert "672 EUR (≈ 14,078 MXN) per person · 2,688 EUR (≈ 56,314 MXN) for 4" in text
+    assert "1 EUR = 20.95 MXN" in text
+    assert "MXN" not in agent.message(o, None, CFG)              # no rate → EUR only
+    assert agent.rate(None) is None
