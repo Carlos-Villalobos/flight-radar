@@ -127,3 +127,10 @@ def test_message_converts_to_local_currency():
     assert "1 EUR = 20.95 MXN" in text
     assert "MXN" not in agent.message(o, None, CFG)              # no rate → EUR only
     assert agent.rate(None) is None
+
+
+def test_message_hides_the_link():
+    o = Offer("GDL", "MAD", dt.date(2027, 4, 24), dt.date(2027, 5, 1), 672, "", None,
+              "https://www.google.com/travel/flights?tfs=A&curr=EUR", "<x>")
+    text = agent.message(o, None, CFG)
+    assert text.endswith('<a href="https://www.google.com/travel/flights?tfs=A&amp;curr=EUR">Open in Google Flights</a>')

@@ -1,4 +1,5 @@
 """One check: read the Google Flights alerts, store the history and decide what to notify. Runs and exits (systemd)."""
+import html
 import logging
 
 import requests
@@ -45,7 +46,8 @@ def message(o: Offer, previous: float | None, cfg: dict, fx: float | None = None
     dates = o.outbound.strftime("%a %d %b %Y") + (f" → {o.inbound.strftime('%a %d %b %Y')}" if o.inbound else "")
     return (f"{head}\n{dates} · Google Flights alert\n"
             f"{_money(o.price, c)}{also(o.price)} per person · {_money(o.price * n, c)}{also(o.price * n)} for {n}\n"
-            + (f"1 {c} = {fx:.2f} {to.upper()} (ECB, today)\n" if fx else "") + o.link)
+            + (f"1 {c} = {fx:.2f} {to.upper()} (ECB, today)\n" if fx else "")
+            + f'<a href="{html.escape(o.link)}">Open in Google Flights</a>')
 
 
 def check(cfg: dict, con, read=source.read, send=notify.telegram) -> list[str]:

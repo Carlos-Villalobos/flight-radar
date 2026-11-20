@@ -43,10 +43,12 @@ def _send(payload: dict) -> bool:
 
 
 def telegram(text: str, silent: bool = False) -> bool:
+    """Sends `text` as Telegram HTML: callers escape anything that is not markup."""
     global last_error
     if not env("TELEGRAM_BOT_TOKEN") or not env("TELEGRAM_CHAT_ID"):
         last_error = "TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing in .env"
         return False
     return all(_send({"chat_id": env("TELEGRAM_CHAT_ID"), "text": text[i:i + LIMIT],
-                      "disable_web_page_preview": True, "disable_notification": silent})
+                      "parse_mode": "HTML", "disable_web_page_preview": True,
+                      "disable_notification": silent})
                for i in range(0, len(text), LIMIT))
